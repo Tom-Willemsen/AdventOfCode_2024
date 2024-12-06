@@ -1,6 +1,7 @@
 #![cfg_attr(feature = "bench", feature(test))]
 use advent_of_code_2024::{grid_util::make_byte_grid, Cli, Parser};
 use ahash::AHashSet;
+use bitvec::prelude::*;
 use ndarray::Array2;
 use rayon::prelude::*;
 use std::fs;
@@ -48,14 +49,21 @@ fn next_pos(
 }
 
 fn does_loop(grid: &Array2<u8>, start_pos: (usize, usize), extra_obstacle: (usize, usize)) -> bool {
-    let mut visited = AHashSet::<(usize, usize, Direction)>::default();
+    // Store visited places as a bitvec, this is ~5x faster than a HashSet.
+    let mut visited = bitvec![u32, Lsb0; 0; grid.dim().0 * grid.dim().1 * 4];
 
     let mut pos = start_pos;
-    let mut dir = Direction::Up;
+    let mut dir: Direction = Direction::Up;
+
     while (0..grid.dim().0).contains(&pos.0) && (0..grid.dim().1).contains(&pos.1) {
-        if !visited.insert((pos.0, pos.1, dir)) {
+        let mut v = visited
+            .get_mut(pos.0 * 4 * grid.dim().1 + pos.1 * 4 + dir as usize)
+            .expect("invalid bitvec index");
+
+        if *v {
             return true;
         }
+        *v = true;
         (pos, dir) = next_pos(grid, pos, dir, Some(extra_obstacle));
     }
     false
