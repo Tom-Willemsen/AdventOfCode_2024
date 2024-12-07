@@ -56,14 +56,13 @@ fn does_loop(grid: &Array2<u8>, start_pos: (usize, usize), extra_obstacle: (usiz
     let mut dir: Direction = Direction::Up;
 
     while (0..grid.dim().0).contains(&pos.0) && (0..grid.dim().1).contains(&pos.1) {
-        let mut v = visited
+        if visited
             .get_mut(pos.0 * 4 * grid.dim().1 + pos.1 * 4 + dir as usize)
-            .expect("invalid bitvec index");
-
-        if *v {
+            .expect("invalid bitvec index")
+            .replace(true)
+        {
             return true;
         }
-        *v = true;
         (pos, dir) = next_pos(grid, pos, dir, Some(extra_obstacle));
     }
     false
