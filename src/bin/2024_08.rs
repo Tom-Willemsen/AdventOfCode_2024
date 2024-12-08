@@ -1,12 +1,13 @@
 #![cfg_attr(feature = "bench", feature(test))]
 use advent_of_code_2024::{grid_util::make_byte_grid, Cli, Parser};
-use ahash::{AHashMap, AHashSet};
+use ahash::AHashMap;
+use bitvec::prelude::*;
 use itertools::Itertools;
 use num_integer::gcd;
 use std::fs;
 
 fn mark_antinodes_p1(
-    antinodes: &mut AHashSet<(usize, usize)>,
+    antinodes: &mut BitVec<u32>,
     p1: &(usize, usize),
     p2: &(usize, usize),
     max_sizes: &(usize, usize),
@@ -30,13 +31,13 @@ fn mark_antinodes_p1(
             && px < max_sizes.1
             && (py.abs_diff(*y1), px.abs_diff(*x1)) == (2 * dy, 2 * dx)
         {
-            antinodes.insert((py, px));
+            antinodes.set(py * max_sizes.1 + px, true);
         }
     }
 }
 
 fn mark_antinodes_p2(
-    antinodes: &mut AHashSet<(usize, usize)>,
+    antinodes: &mut BitVec<u32>,
     p1: &(usize, usize),
     p2: &(usize, usize),
     max_sizes: &(usize, usize),
@@ -51,14 +52,14 @@ fn mark_antinodes_p2(
 
     let (mut cy, mut cx) = (y1, x1);
     while cy >= 0 && cx >= 0 && cy < max_sizes.0 as i64 && cx < max_sizes.1 as i64 {
-        antinodes.insert((cy as usize, cx as usize));
+        antinodes.set(cy as usize * max_sizes.1 + cx as usize, true);
         cy += dy;
         cx += dx;
     }
 
     let (mut cy, mut cx) = (y1, x1);
     while cy >= 0 && cx >= 0 && cy < max_sizes.0 as i64 && cx < max_sizes.1 as i64 {
-        antinodes.insert((cy as usize, cx as usize));
+        antinodes.set(cy as usize * max_sizes.1 + cx as usize, true);
         cy -= dy;
         cx -= dx;
     }
@@ -73,8 +74,9 @@ fn calculate(raw_inp: &str) -> (usize, usize) {
         .filter(|&(_, v)| v != &b'.')
         .for_each(|(pos, v)| antennae.entry(*v).or_insert(vec![]).push(pos));
 
-    let mut p1 = AHashSet::<(usize, usize)>::default();
-    let mut p2 = AHashSet::<(usize, usize)>::default();
+    // Store visited places as a bitvec, as a totally unnecessary optimization.
+    let mut p1 = bitvec![u32, Lsb0; 0; grid.dim().0 * grid.dim().1];
+    let mut p2 = bitvec![u32, Lsb0; 0; grid.dim().0 * grid.dim().1];
 
     antennae.values().for_each(|v| {
         v.iter().tuple_combinations().for_each(|(v1, v2)| {
@@ -85,7 +87,7 @@ fn calculate(raw_inp: &str) -> (usize, usize) {
         });
     });
 
-    (p1.len(), p2.len())
+    (p1.count_ones(), p2.count_ones())
 }
 
 fn main() {
