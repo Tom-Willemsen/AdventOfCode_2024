@@ -1,11 +1,12 @@
 #![cfg_attr(feature = "bench", feature(test))]
 use advent_of_code_2024::{Cli, Parser};
-use std::fs;
+use std::{collections::VecDeque, fs};
 
 #[derive(Debug, Clone, Copy)]
-struct Disk {
-    id: Option<usize>,
+struct AmphipodFile {
+    id: usize,
     len: usize,
+    offset: usize,
 }
 
 fn part1(raw_inp: &str) -> usize {
@@ -16,128 +17,90 @@ fn part1(raw_inp: &str) -> usize {
         .trim()
         .bytes()
         .flat_map(|c| {
-            let len = (c - &b'0') as usize;
-            let mut r = vec![];
-            for _ in 0..len {
-                if is_file {
-                    r.push(Some(id))
-                } else {
-                    r.push(None)
-                }
-            }
+            let len = (c - b'0') as usize;
+            let r = if is_file {
+                [Some(id)].repeat(len)
+            } else {
+                [None].repeat(len)
+            };
             if is_file {
                 id += 1;
             }
             is_file = !is_file;
-            return r;
+            r
         })
         .collect::<Vec<Option<usize>>>();
 
-    let mut next_empty_slot = disk.iter().position(|&e| e == None).unwrap();
+    let mut next_empty_slot = disk.iter().position(|&e| e.is_none()).unwrap();
     while next_empty_slot < disk.len() {
         disk.swap_remove(next_empty_slot);
-        while next_empty_slot < disk.len() && disk[next_empty_slot] != None {
+
+        while next_empty_slot < disk.len() && disk[next_empty_slot].is_some() {
             next_empty_slot += 1;
         }
     }
 
-    disk.iter()
+    disk.into_iter()
         .zip(0_usize..)
-        .map(|(x, y)| x.unwrap() * y)
+        .map(|(x, y)| x.unwrap_or(0) * y)
         .sum()
 }
 
-fn merge_free_space(disk: Vec<Disk>) -> Vec<Disk> {
-    let mut nd: Vec<Disk> = vec![];
-
-    for item in disk {
-        if item.id == None {
-            let l = nd.len();
-            if nd[l - 1].id == None {
-                nd.get_mut(l - 1).unwrap().len += item.len;
-            } else if item.len > 0 {
-                nd.push(item);
-            }
-        } else {
-            nd.push(item);
-        }
-    }
-    nd
+fn sum_to_n(n: usize) -> usize {
+    (n * (n + 1)) / 2
 }
 
 fn part2(raw_inp: &str) -> usize {
     let mut is_file = true;
     let mut id = 0_usize;
 
-    let mut disk = raw_inp
-        .trim()
-        .bytes()
-        .map(|c| {
-            let len = (c - &b'0') as usize;
-            let r = Disk {
-                id: if is_file { Some(id) } else { None },
-                len: len,
-            };
+    let mut offset = 0_usize;
 
-            if is_file {
-                id += 1;
-            }
-            is_file = !is_file;
-            return r;
-        })
-        .collect::<Vec<Disk>>();
+    let mut space_buckets: [VecDeque<usize>; 10] = Default::default();
+    let mut files = vec![];
 
-    id -= 1;
-
-    while id != 0 {
-        let opos = disk.iter().position(|e| e.id == Some(id)).unwrap();
-
-        let f = disk[opos];
-
-        let npos = disk.iter().position(|e| e.id == None && e.len >= f.len);
-
-        if let Some(npos) = npos {
-            if npos >= opos {
-                id -= 1;
-                continue;
-            }
-
-            let f = disk[opos];
-            let s = disk[npos];
-
-            disk[opos].id = None;
-            disk[npos] = f;
-
-            disk.insert(
-                npos + 1,
-                Disk {
-                    id: None,
-                    len: (s.len - f.len),
-                },
-            );
+    raw_inp.trim().bytes().for_each(|c| {
+        let len = (c - b'0') as usize;
+        if is_file {
+            files.push(AmphipodFile { id, len, offset });
+            id += 1;
+        } else {
+            space_buckets[len].push_back(offset);
         }
+        is_file = !is_file;
+        offset += len;
+    });
 
-        // Merging free space doesn't actually seem to be required?
-        disk = merge_free_space(disk);
+    for file in files.iter_mut().rev() {
+        if let Some(bucket) = (file.len..space_buckets.len())
+            .map(|i| (i, &space_buckets[i]))
+            .filter(|(_, b)| b.front().map(|x| x < &file.offset).unwrap_or(false))
+            .min_by(|a, b| a.1[0].cmp(&b.1[0]))
+            .map(|x| x.0)
+        {
+            let space = space_buckets[bucket].pop_front().expect("empty bucket");
 
-        id -= 1;
+            file.offset = space;
+
+            if file.len < bucket {
+                let itm = space + file.len;
+                let idx = match space_buckets[bucket - file.len].binary_search(&itm) {
+                    Ok(i) => i,
+                    Err(i) => i,
+                };
+                space_buckets[bucket - file.len].insert(idx, itm);
+            }
+        }
     }
 
-    disk.iter()
-        .flat_map(|c| {
-            let mut r = vec![];
-            for _ in 0..c.len {
-                r.push(c.id)
-            }
-            return r;
-        })
-        .zip(0_usize..)
-        .map(|(x, y)| x.unwrap_or(0) * y)
+    files
+        .into_iter()
+        .map(|f| f.id * (sum_to_n(f.len) + f.len * f.offset - f.len))
         .sum()
 }
 
 fn calculate(raw_inp: &str) -> (usize, usize) {
-    (part1(&raw_inp), part2(&raw_inp))
+    (part1(raw_inp), part2(raw_inp))
 }
 
 fn main() {
