@@ -1,12 +1,12 @@
 #![cfg_attr(feature = "bench", feature(test))]
 use advent_of_code_2024::{grid_util::make_byte_grid, Cli, Parser};
-use ahash::{AHashMap, AHashSet};
 use bitvec::prelude::*;
 use ndarray::Array2;
 use rayon::prelude::*;
+use rustc_hash::{FxHashMap, FxHashSet};
 use std::fs;
 
-type JumpMap = AHashMap<(usize, usize, Direction), (usize, usize, Direction)>;
+type JumpMap = FxHashMap<(usize, usize, Direction), (usize, usize, Direction)>;
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 enum Direction {
@@ -120,7 +120,7 @@ fn calculate(raw_inp: &str) -> (usize, usize) {
 
     grid[start_pos] = b'.';
 
-    let mut visited = AHashSet::<(usize, usize)>::default();
+    let mut visited = FxHashSet::<(usize, usize)>::default();
 
     let mut pos = start_pos;
     let mut dir = Direction::Up;
@@ -130,7 +130,7 @@ fn calculate(raw_inp: &str) -> (usize, usize) {
 
     while pos.0 < dim_y && pos.1 < dim_x {
         visited.insert(pos);
-        (pos, dir) = next_pos(&grid, pos, dir, None, &AHashMap::default());
+        (pos, dir) = next_pos(&grid, pos, dir, None, &FxHashMap::default());
     }
 
     let p1 = visited.len();
