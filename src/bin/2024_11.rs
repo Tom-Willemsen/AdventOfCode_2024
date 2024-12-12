@@ -33,7 +33,7 @@ fn blink<const P1_BLINKS: usize, const P2_BLINKS: usize>(raw_inp: &str) -> (usiz
 
         let cap = stones.capacity();
         stones = stones.into_iter().fold(
-            FxHashMap::with_capacity_and_hasher(cap, FxBuildHasher::default()),
+            FxHashMap::with_capacity_and_hasher(cap, FxBuildHasher),
             |mut m, (n, v)| {
                 if n == 0 {
                     *m.entry(1).or_insert(0) += v;
