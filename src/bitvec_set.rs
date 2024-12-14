@@ -60,6 +60,10 @@ impl BitVecSet2D {
         self.bv.count_ones()
     }
 
+    pub fn clear(&mut self) {
+        self.bv.fill(false);
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = (usize, usize)> + use<'_> {
         self.bv
             .iter_ones()
