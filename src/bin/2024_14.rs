@@ -167,7 +167,7 @@ mod tests {
 
         #[bench]
         fn bench(b: &mut Bencher) {
-            b.iter(|| calculate(black_box(REAL_DATA)));
+            b.iter(|| calculate::<101, 103>(black_box(REAL_DATA)));
         }
     }
 }
