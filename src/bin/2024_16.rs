@@ -3,41 +3,41 @@ use advent_of_code_2024::bitvec_set::BitVecSet2D;
 use advent_of_code_2024::{grid_util::make_byte_grid, Cli, Parser};
 use ndarray::{s, Array2, Array3};
 use std::collections::VecDeque;
-use std::{fs, i32};
+use std::fs;
 
 #[derive(Copy, Clone)]
 enum Dir {
-    RIGHT,
-    UP,
-    LEFT,
-    DOWN,
+    Right,
+    Up,
+    Left,
+    Down,
 }
 
 impl Dir {
     fn raw(&self) -> (isize, isize) {
         match self {
-            Dir::RIGHT => (0, 1),
-            Dir::LEFT => (0, -1),
-            Dir::UP => (-1, 0),
-            Dir::DOWN => (1, 0),
+            Dir::Right => (0, 1),
+            Dir::Left => (0, -1),
+            Dir::Up => (-1, 0),
+            Dir::Down => (1, 0),
         }
     }
 
     fn turn_right(&self) -> Dir {
         match self {
-            Dir::RIGHT => Dir::DOWN,
-            Dir::DOWN => Dir::LEFT,
-            Dir::LEFT => Dir::UP,
-            Dir::UP => Dir::RIGHT,
+            Dir::Right => Dir::Down,
+            Dir::Down => Dir::Left,
+            Dir::Left => Dir::Up,
+            Dir::Up => Dir::Right,
         }
     }
 
     fn turn_left(&self) -> Dir {
         match self {
-            Dir::RIGHT => Dir::UP,
-            Dir::UP => Dir::LEFT,
-            Dir::LEFT => Dir::DOWN,
-            Dir::DOWN => Dir::RIGHT,
+            Dir::Right => Dir::Up,
+            Dir::Up => Dir::Left,
+            Dir::Left => Dir::Down,
+            Dir::Down => Dir::Right,
         }
     }
 }
@@ -100,11 +100,11 @@ fn find_index(grid: &Array2<u8>, ch: u8) -> (usize, usize) {
 }
 
 fn part1(grid: &Array2<u8>, costs: &mut Array3<i32>, end: &(usize, usize)) -> i32 {
-    let start = find_index(&grid, b'S');
+    let start = find_index(grid, b'S');
     let start = PosAndDir {
         py: start.0,
         px: start.1,
-        dir: Dir::RIGHT,
+        dir: Dir::Right,
     };
 
     // Dumb VecDeque faster than BinaryHeap today
@@ -115,10 +115,10 @@ fn part1(grid: &Array2<u8>, costs: &mut Array3<i32>, end: &(usize, usize)) -> i3
 
     while let Some((cost, pos)) = q.pop_front() {
         for (next_pos, c) in pos.next_moves_and_costs(true).into_iter() {
-            let next_cost = cost - c;
+            let next_cost = cost + c;
 
             if let Some(&tile) = grid.get(next_pos.pos()) {
-                if tile != b'#' && next_cost > costs[next_pos.raw()] {
+                if tile != b'#' && next_cost < costs[next_pos.raw()] {
                     costs[next_pos.raw()] = next_cost;
                     q.push_back((next_cost, next_pos));
                 }
@@ -126,10 +126,10 @@ fn part1(grid: &Array2<u8>, costs: &mut Array3<i32>, end: &(usize, usize)) -> i3
         }
     }
 
-    -costs
+    *costs
         .slice(s![end.0, end.1, ..])
         .iter()
-        .max()
+        .min()
         .expect("no solution")
 }
 
@@ -139,20 +139,20 @@ fn part2(grid: &Array2<u8>, costs: &Array3<i32>, end: &(usize, usize), p1_score:
     let mut best_paths = BitVecSet2D::new(grid.dim());
     best_paths.insert(*end);
 
-    for d in [Dir::UP, Dir::DOWN, Dir::LEFT, Dir::RIGHT] {
+    for d in [Dir::Up, Dir::Down, Dir::Left, Dir::Right] {
         let pos = PosAndDir {
             py: end.0,
             px: end.1,
             dir: d,
         };
-        if Some(&-p1_score) == costs.get(pos.raw()) {
+        if Some(&p1_score) == costs.get(pos.raw()) {
             q.push_back(pos);
         }
     }
 
     while let Some(pos) = q.pop_front() {
         for (next_pos, c) in pos.next_moves_and_costs(false).into_iter() {
-            let next_cost = costs[pos.raw()] + c;
+            let next_cost = costs[pos.raw()] - c;
 
             if Some(&next_cost) == costs.get(next_pos.raw()) {
                 best_paths.insert(next_pos.pos());
@@ -167,12 +167,12 @@ fn part2(grid: &Array2<u8>, costs: &Array3<i32>, end: &(usize, usize), p1_score:
 fn calculate(raw_inp: &str) -> (i32, usize) {
     let grid = make_byte_grid(raw_inp);
     let end = find_index(&grid, b'E');
-    let mut costs: Array3<i32> = Array3::from_elem((grid.dim().0, grid.dim().1, 4), i32::MIN);
+    let mut costs: Array3<i32> = Array3::from_elem((grid.dim().0, grid.dim().1, 4), i32::MAX);
 
     let p1 = part1(&grid, &mut costs, &end);
     let p2 = part2(&grid, &costs, &end, p1);
 
-    return (p1, p2);
+    (p1, p2)
 }
 
 fn main() {
@@ -194,17 +194,17 @@ mod tests {
 
     #[test]
     fn test_example_1() {
-        assert_eq!(calculate(&EXAMPLE_DATA_1), (7036, 45));
+        assert_eq!(calculate(EXAMPLE_DATA_1), (7036, 45));
     }
 
     #[test]
     fn test_example_2() {
-        assert_eq!(calculate(&EXAMPLE_DATA_2), (11048, 64));
+        assert_eq!(calculate(EXAMPLE_DATA_2), (11048, 64));
     }
 
     #[test]
     fn test_real() {
-        assert_eq!(calculate(&REAL_DATA), (98484, 531));
+        assert_eq!(calculate(REAL_DATA), (98484, 531));
     }
 
     #[cfg(feature = "bench")]

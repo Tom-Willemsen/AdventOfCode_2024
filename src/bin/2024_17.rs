@@ -1,18 +1,13 @@
 #![cfg_attr(feature = "bench", feature(test))]
 use advent_of_code_2024::{Cli, Parser};
 use itertools::Itertools;
-use std::{fs, ops::BitXor};
+use std::fs;
 
-fn run_program(a: i64, b: i64, c: i64, program: &[i64]) -> Vec<i64> {
+fn run_program(mut a: u64, mut b: u64, mut c: u64, program: &[u64]) -> Vec<u64> {
     let mut ip = 0;
+    let mut out = Vec::with_capacity(16);
 
-    let mut out = vec![];
-
-    let mut a = a;
-    let mut b = b;
-    let mut c = c;
-
-    loop {
+    while ip + 1 < program.len() {
         let inst = program[ip];
         let literal = program[ip + 1];
         let combo = match literal {
@@ -20,104 +15,97 @@ fn run_program(a: i64, b: i64, c: i64, program: &[i64]) -> Vec<i64> {
             4 => a,
             5 => b,
             6 => c,
-            _ => i64::MAX,
+            _ => u64::MAX,
         };
 
         match inst {
             0 => {
-                assert!(combo != i64::MAX);
-                a /= 2_i64.pow(combo as u32);
+                debug_assert!(combo != u64::MAX);
+                a /= 2_u64.pow(combo as u32);
             }
             1 => {
-                b = b.bitxor(literal);
+                b ^= literal;
             }
             2 => {
-                assert!(combo != i64::MAX);
+                debug_assert!(combo != u64::MAX);
                 b = combo.rem_euclid(8);
             }
             3 => {
                 if a != 0 {
                     ip = literal as usize;
-                    if ip + 1 >= program.len() {
-                        break;
-                    }
                     continue;
                 }
             }
             4 => {
-                b = b.bitxor(c);
+                b ^= c;
             }
             5 => {
-                assert!(combo != i64::MAX);
+                debug_assert!(combo != u64::MAX);
                 out.push(combo.rem_euclid(8));
             }
             6 => {
-                assert!(combo != i64::MAX);
-                b = a / 2_i64.pow(combo as u32);
+                debug_assert!(combo != u64::MAX);
+                b = a / 2_u64.pow(combo as u32);
             }
             7 => {
-                assert!(combo != i64::MAX);
-                c = a / 2_i64.pow(combo as u32);
+                debug_assert!(combo != u64::MAX);
+                c = a / 2_u64.pow(combo as u32);
             }
             _ => panic!("invalid instruction"),
         }
 
         ip += 2;
-        if ip + 1 >= program.len() {
-            break;
-        }
     }
     out
 }
 
-fn get_a(coeffs: &[i64]) -> i64 {
+fn get_a(coeffs: &[u64]) -> u64 {
     coeffs
         .iter()
         .enumerate()
-        .map(|(p, n)| 8i64.pow((coeffs.len() - p - 1) as u32) * n)
+        .map(|(p, n)| 8u64.pow((coeffs.len() - p - 1) as u32) * n)
         .sum()
 }
 
-fn part2(nums: &mut Vec<i64>, program: &[i64]) -> Option<i64> {
+fn part2(nums: &mut Vec<u64>, program: &[u64], b: u64, c: u64) -> Option<u64> {
     if nums.len() == program.len() {
         return Some(get_a(nums));
     }
 
-    for i in 0..8 {
-        nums.push(i);
+    (0..8)
+        .filter_map(|i| {
+            nums.push(i);
 
-        let output = run_program(get_a(nums), 0, 0, program);
+            let length = nums.len();
+            let solution = run_program(get_a(nums), b, c, program)
+                .ends_with(&program[program.len() - length..])
+                .then(|| part2(nums, program, b, c))
+                .flatten();
 
-        let length = nums.len();
-        if output.ends_with(&program[program.len() - length..]) {
-            if let Some(solution) = part2(nums, program) {
-                return Some(solution);
-            }
-        }
-        nums.pop();
-    }
-    None
+            nums.pop();
+            solution
+        })
+        .min()
 }
 
-fn calculate(raw_inp: &str) -> (String, i64) {
+fn calculate(raw_inp: &str) -> (String, u64) {
     let (head, tail) = raw_inp.split_once("\n\n").expect("bad format");
 
     let (a, b, c) = head
         .lines()
-        .filter_map(|line| line.split_once(": ").and_then(|x| x.1.parse::<i64>().ok()))
+        .filter_map(|line| line.split_once(": ").and_then(|x| x.1.parse::<u64>().ok()))
         .collect_tuple()
         .expect("too many registers");
 
     let program = tail
-        .split_once(": ")
+        .strip_prefix("Program: ")
         .expect("bad format")
-        .1
         .split(",")
         .filter_map(|x| x.trim().parse().ok())
-        .collect::<Vec<i64>>();
+        .collect::<Vec<u64>>();
 
     let p1 = run_program(a, b, c, &program).into_iter().join(",");
-    let p2 = part2(&mut vec![], &program).expect("no p2 solution?");
+    let p2 = part2(&mut Vec::with_capacity(16), &program, b, c).expect("no p2 solution?");
 
     (p1, p2)
 }
@@ -137,6 +125,19 @@ mod tests {
 
     const EXAMPLE_DATA: &str = include_str!("../../inputs/examples/2024_17");
     const REAL_DATA: &str = include_str!("../../inputs/real/2024_17");
+
+    #[test]
+    fn test_simple_example_1() {
+        assert_eq!(run_program(10, 0, 0, &[5, 0, 5, 1, 5, 4]), &[0, 1, 2]);
+    }
+
+    #[test]
+    fn test_simple_example_2() {
+        assert_eq!(
+            run_program(2024, 0, 0, &[0, 1, 5, 4, 3, 0]),
+            &[4, 2, 5, 6, 7, 7, 7, 7, 3, 1, 0]
+        );
+    }
 
     #[test]
     fn test_example_p1() {
