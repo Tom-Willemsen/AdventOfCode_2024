@@ -1,6 +1,7 @@
 #![cfg_attr(feature = "bench", feature(test))]
 use advent_of_code_2024::{grid_util::make_byte_grid, Cli, Parser};
 use ndarray::Array2;
+use rayon::prelude::*;
 use std::{collections::VecDeque, fs};
 
 const DIRS: [(isize, isize); 4] = [(0, 1), (1, 0), (0, -1), (-1, 0)];
@@ -74,14 +75,14 @@ fn enumerate_cheats(
     costs: &Array2<u32>,
     good_cheat_savings: u32,
 ) -> (u32, u32) {
-    path.into_iter()
+    path.into_par_iter()
         .map(|start| {
             (
                 get_cheats(start, costs, 2, good_cheat_savings),
                 get_cheats(start, costs, 20, good_cheat_savings),
             )
         })
-        .fold((0, 0), |a, b| (a.0 + b.0, a.1 + b.1))
+        .reduce(|| (0, 0), |a, b| (a.0 + b.0, a.1 + b.1))
 }
 
 fn get_pos_of(grid: &Array2<u8>, needle: u8) -> (usize, usize) {
