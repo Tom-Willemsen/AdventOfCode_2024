@@ -41,45 +41,41 @@ fn get_path_and_costs(
     (path, costs)
 }
 
-fn get_cheats(pos: (usize, usize), costs: &Array2<u32>, n: u32, good_cheat_savings: u32) -> u32 {
+fn get_cheats<const N: usize, const SAVINGS: u32>(pos: (usize, usize), costs: &Array2<u32>) -> u32 {
     let (yp, xp) = pos;
-    let ys = yp.saturating_sub(n as usize);
-    let ye = (costs.dim().0 - 1).min(yp + n as usize);
+    let ys = yp.saturating_sub(N);
+    let ye = (costs.dim().0 - 1).min(yp + N);
 
     let cp = costs[(yp, xp)];
     debug_assert!(cp != u32::MAX);
 
     let mut ans = 0;
-    for y in ys..=ye {
+    for y in ys..ye + 1 {
         let yd = y.abs_diff(yp);
-        let xs = xp.saturating_sub(n as usize - yd);
-        let xe = (costs.dim().1 - 1).min(xp + n as usize - yd);
+        let xs = xp.saturating_sub(N - yd);
+        let xe = (costs.dim().1 - 1).min(xp + N - yd);
 
-        for x in xs..=xe {
+        for x in xs..xe + 1 {
             let cc = costs[(y, x)];
-            if cc == u32::MAX {
-                continue;
-            }
-            let diff = (x.abs_diff(xp) + y.abs_diff(yp)) as u32;
-            if cc >= cp + diff + good_cheat_savings {
-                ans += 1;
-            }
+            let diff = (x.abs_diff(xp) + yd) as u32;
+            ans += (cc != u32::MAX && cc >= cp + diff + SAVINGS) as u32;
         }
     }
 
     ans
 }
 
-fn enumerate_cheats(
+fn enumerate_cheats<const SAVINGS: u32>(
     path: Vec<(usize, usize)>,
     costs: &Array2<u32>,
-    good_cheat_savings: u32,
 ) -> (u32, u32) {
-    path.into_par_iter()
+    let bound = path.len() - SAVINGS as usize;
+    path[..bound]
+        .into_par_iter()
         .map(|start| {
             (
-                get_cheats(start, costs, 2, good_cheat_savings),
-                get_cheats(start, costs, 20, good_cheat_savings),
+                get_cheats::<2, SAVINGS>(*start, costs),
+                get_cheats::<20, SAVINGS>(*start, costs),
             )
         })
         .reduce(|| (0, 0), |a, b| (a.0 + b.0, a.1 + b.1))
@@ -92,7 +88,7 @@ fn get_pos_of(grid: &Array2<u8>, needle: u8) -> (usize, usize) {
         .expect("can't find needle")
 }
 
-fn calculate(raw_inp: &str, good_cheat_savings: u32) -> (u32, u32) {
+fn calculate<const SAVINGS: u32>(raw_inp: &str) -> (u32, u32) {
     let mut grid = make_byte_grid(raw_inp);
 
     let start = get_pos_of(&grid, b'S');
@@ -103,15 +99,22 @@ fn calculate(raw_inp: &str, good_cheat_savings: u32) -> (u32, u32) {
 
     let (path, costs) = get_path_and_costs(&grid, start);
 
-    enumerate_cheats(path, &costs, good_cheat_savings)
+    enumerate_cheats::<SAVINGS>(path, &costs)
 }
 
 fn main() {
+    let cpus: usize = std::thread::available_parallelism().unwrap().into();
+    let threads = (cpus / 2).max(1);
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(threads)
+        .build_global()
+        .unwrap();
+
     let args = Cli::parse();
 
     let inp = fs::read_to_string(args.input).expect("can't open input file");
 
-    let (p1, p2) = calculate(&inp, 100);
+    let (p1, p2) = calculate::<100>(&inp);
     println!("{}\n{}", p1, p2);
 }
 
@@ -124,40 +127,40 @@ mod tests {
 
     #[test]
     fn test_example_p1() {
-        assert_eq!(calculate(EXAMPLE_DATA, 2).0, 44);
-        assert_eq!(calculate(EXAMPLE_DATA, 4).0, 30);
-        assert_eq!(calculate(EXAMPLE_DATA, 6).0, 16);
-        assert_eq!(calculate(EXAMPLE_DATA, 8).0, 14);
-        assert_eq!(calculate(EXAMPLE_DATA, 10).0, 10);
-        assert_eq!(calculate(EXAMPLE_DATA, 12).0, 8);
-        assert_eq!(calculate(EXAMPLE_DATA, 20).0, 5);
-        assert_eq!(calculate(EXAMPLE_DATA, 36).0, 4);
-        assert_eq!(calculate(EXAMPLE_DATA, 38).0, 3);
-        assert_eq!(calculate(EXAMPLE_DATA, 40).0, 2);
-        assert_eq!(calculate(EXAMPLE_DATA, 64).0, 1);
+        assert_eq!(calculate::<2>(EXAMPLE_DATA).0, 44);
+        assert_eq!(calculate::<4>(EXAMPLE_DATA).0, 30);
+        assert_eq!(calculate::<6>(EXAMPLE_DATA).0, 16);
+        assert_eq!(calculate::<8>(EXAMPLE_DATA).0, 14);
+        assert_eq!(calculate::<10>(EXAMPLE_DATA).0, 10);
+        assert_eq!(calculate::<12>(EXAMPLE_DATA).0, 8);
+        assert_eq!(calculate::<20>(EXAMPLE_DATA).0, 5);
+        assert_eq!(calculate::<36>(EXAMPLE_DATA).0, 4);
+        assert_eq!(calculate::<38>(EXAMPLE_DATA).0, 3);
+        assert_eq!(calculate::<40>(EXAMPLE_DATA).0, 2);
+        assert_eq!(calculate::<64>(EXAMPLE_DATA).0, 1);
     }
 
     #[test]
     fn test_example_p2() {
-        assert_eq!(calculate(EXAMPLE_DATA, 50).1, 285);
-        assert_eq!(calculate(EXAMPLE_DATA, 52).1, 253);
-        assert_eq!(calculate(EXAMPLE_DATA, 54).1, 222);
-        assert_eq!(calculate(EXAMPLE_DATA, 56).1, 193);
-        assert_eq!(calculate(EXAMPLE_DATA, 58).1, 154);
-        assert_eq!(calculate(EXAMPLE_DATA, 60).1, 129);
-        assert_eq!(calculate(EXAMPLE_DATA, 62).1, 106);
-        assert_eq!(calculate(EXAMPLE_DATA, 64).1, 86);
-        assert_eq!(calculate(EXAMPLE_DATA, 66).1, 67);
-        assert_eq!(calculate(EXAMPLE_DATA, 68).1, 55);
-        assert_eq!(calculate(EXAMPLE_DATA, 70).1, 41);
-        assert_eq!(calculate(EXAMPLE_DATA, 72).1, 29);
-        assert_eq!(calculate(EXAMPLE_DATA, 74).1, 7);
-        assert_eq!(calculate(EXAMPLE_DATA, 76).1, 3);
+        assert_eq!(calculate::<50>(EXAMPLE_DATA).1, 285);
+        assert_eq!(calculate::<52>(EXAMPLE_DATA).1, 253);
+        assert_eq!(calculate::<54>(EXAMPLE_DATA).1, 222);
+        assert_eq!(calculate::<56>(EXAMPLE_DATA).1, 193);
+        assert_eq!(calculate::<58>(EXAMPLE_DATA).1, 154);
+        assert_eq!(calculate::<60>(EXAMPLE_DATA).1, 129);
+        assert_eq!(calculate::<62>(EXAMPLE_DATA).1, 106);
+        assert_eq!(calculate::<64>(EXAMPLE_DATA).1, 86);
+        assert_eq!(calculate::<66>(EXAMPLE_DATA).1, 67);
+        assert_eq!(calculate::<68>(EXAMPLE_DATA).1, 55);
+        assert_eq!(calculate::<70>(EXAMPLE_DATA).1, 41);
+        assert_eq!(calculate::<72>(EXAMPLE_DATA).1, 29);
+        assert_eq!(calculate::<74>(EXAMPLE_DATA).1, 7);
+        assert_eq!(calculate::<76>(EXAMPLE_DATA).1, 3);
     }
 
     #[test]
     fn test_real() {
-        assert_eq!(calculate(REAL_DATA, 100), (1463, 985332));
+        assert_eq!(calculate::<100>(REAL_DATA), (1463, 985332));
     }
 
     #[cfg(feature = "bench")]
@@ -169,7 +172,7 @@ mod tests {
 
         #[bench]
         fn bench(b: &mut Bencher) {
-            b.iter(|| calculate(black_box(REAL_DATA, 100)));
+            b.iter(|| calculate::<100>(black_box(REAL_DATA)));
         }
     }
 }
